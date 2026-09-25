@@ -39,6 +39,10 @@ OUTPUT: Dados/base_analitica.csv
 
 import os
 import pandas as pd
+
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from recorte import CORTE_DADOS  # noqa: E402
 from datetime import date
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -56,7 +60,9 @@ ARQUIVOS = {
 }
 OUTPUT = os.path.join(DADOS, "base_analitica.csv")
 
-HOJE = pd.Timestamp(date.today())
+# Idade da ultima infracao medida na data de CORTE (nao na data de execucao),
+# para que o resultado seja reproduzivel e respeite o recorte. Ver recorte.py.
+HOJE = CORTE_DADOS
 
 # Limite de vinculos para excluir grandes empresas (IBGE: >= 250 = grande)
 LIMITE_GRANDE = 250

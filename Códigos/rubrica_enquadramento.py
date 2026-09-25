@@ -13,7 +13,7 @@ Por que existe:
   sustentavel/ESG, comparada DENTRO de grupos de pares (CNAE divisao x porte).
   Definido FORA dos dados da PME -> nao e circular.
 
-Ancoragem (ver DECISOES_TCC.md):
+Ancoragem (ver "20260605 - DECISOES_TCC - claude.md"):
   - ATIVIDADE verde: Taxonomia Verde da FEBRABAN (subclasse CNAE, escopo E+S),
     via colunas fbb_* de construir_base_febraban.py. Legitimidade: TSB
     (Decreto 12.705/2025, em harmonizacao c/ a FEBRABAN); BNDES e componente.
@@ -21,7 +21,7 @@ Ancoragem (ver DECISOES_TCC.md):
     Modelo de DUAS CAMADAS -> trava anti-dupla-contagem entre o [Social] da
     atividade (bonus S) e o pilar S de conduta (merito S).
 
-Principios (ver Framework_Criterios_Credito_Verde_PME.md + DECISOES_TCC.md):
+Principios (ver "20260604 - Framework_Criterios_Credito_Verde_PME - claude.md" + "20260605 - DECISOES_TCC - claude.md"):
   - BONUS de atividade FEBRABAN por eixo: Ambiental->E, Social->S, ambos->E+S.
   - EXPOSICAO (risco amb./climatico da atividade) != demerito -> nao penaliza
     por padrao (toggle PENALIZAR_EXPOSICAO, default False).

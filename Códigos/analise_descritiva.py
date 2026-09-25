@@ -44,7 +44,7 @@ os.makedirs(PLOTS, exist_ok=True)
 # Porte RFB -> nome legivel (a base febraban/raw tem 'porte' mas nao 'porte_nome').
 PORTE_NOME = {"01": "Micro", "03": "Pequena", "05": "Media+", "00": "ND"}
 
-AZUL = "#1A237E"; CLARO = "#90CAF9"; HOJE = pd.Timestamp(2026, 6, 1)
+AZUL = "#1A237E"; CLARO = "#90CAF9"; HOJE = pd.Timestamp(2026, 9, 1)   # dia seguinte ao corte dos dados (31/08/2026); ver recorte.py
 
 # Variaveis por pilar (rotulo amigavel)
 GRUPOS = {

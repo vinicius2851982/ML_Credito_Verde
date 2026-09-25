@@ -58,7 +58,7 @@ TAB_FAIR = os.path.join(DADOS, "tabela_regional_fairness.csv")
 os.makedirs(PLOTS, exist_ok=True)
 
 SEED = 42; TEST_SIZE = 0.20
-HOJE = pd.Timestamp(2026, 6, 1)
+HOJE = pd.Timestamp(2026, 9, 1)   # dia seguinte ao corte dos dados (31/08/2026); ver recorte.py
 PORTE_MAP = {"00": 0, "01": 1, "03": 2, "05": 3}
 
 REGIAO = {

@@ -62,3 +62,8 @@ logs/
 *.tmp
 *.temp
 .tmp/
+
+# Artefatos de execucao
+Codigos/catboost_info/
+catboost_info/
+*.anterior

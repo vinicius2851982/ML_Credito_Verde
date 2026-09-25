@@ -126,7 +126,7 @@ FEATURES_CAT = ["cnae_divisao"]   # one-hot
 
 PORTE_MAP = {"00": 0, "01": 1, "03": 2, "05": 3}
 ANOS_SEM_INFRACAO = 30.0
-HOJE = pd.Timestamp(2026, 6, 1)
+HOJE = pd.Timestamp(2026, 9, 1)   # dia seguinte ao corte dos dados (31/08/2026); ver recorte.py
 
 NOMES_FEATURES = {
     "porte_num": "Porte (ordinal)", "capital_social_log": "Capital Social log",

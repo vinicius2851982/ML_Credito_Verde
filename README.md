@@ -16,6 +16,15 @@ Trata-se de um TCC de MBA (USP/Esalq — Economia, Investimentos e Banking) que 
 
 Os scripts estão em `Códigos/` e devem ser executados na seguinte ordem:
 
+### Recorte temporal (base de tudo)
+- `recorte.py` — **fonte única das datas de corte**. Define o recorte normativo (31/05/2026) e o corte dos dados (31/08/2026), além da função de filtro aplicada nos ETLs. As bases do IBAMA e do CEIS são cumulativas: sem esse filtro, entrariam fatos posteriores ao recorte declarado.
+
+### Coleta automatizada
+- `atualizar_dados_ibama.py` — baixa autos de infração e termos de embargo resolvendo as URLs pela API CKAN do IBAMA; grava manifesto de proveniência (URL, tamanho, data de publicação)
+- `consolidar_ibama.py` — consolida os CSV anuais do IBAMA num arquivo único, descartando anos posteriores ao corte
+
+> **Fontes que exigem download manual:** Receita Federal (repositório migrado para Nextcloud privado, retorna 404) e CEIS/CGU (protegido por WAF com CAPTCHA, retorna 403).
+
 ### Etapas de Coleta & Transformação (ETLs)
 - `etl_ibama.py` — autuações e embargos (IBAMA)
 - `etl_receita.py` — dados do cadastro (RFB)
@@ -39,6 +48,10 @@ Os scripts estão em `Códigos/` e devem ser executados na seguinte ordem:
 - `classificacao.py` — LogReg + XGBoost com features cadastrais (porte, capital, tempo, CNAE)
 - `roc_binaria.py` — análise de elegibilidade binária (Verde × não-Verde)
 
+### Fundamentação amostral
+- `analise_amostral.py` — apura os parâmetros da população varrendo a base bruta da RFB, testa a aderência da amostra por região/setor/porte (qui-quadrado e V de Cramér) e dimensiona o erro por estrato
+- `estimativas_populacionais.py` — aplica o peso amostral e expande os resultados para a população, com IC 95% e correção para população finita
+
 ### Análise Descritiva & Resultados
 - `analise_descritiva.py` — estatísticas descritivas (inicial e final)
 - `analise_regional.py` — distribuição por Região/UF e igualdade de oportunidade (viés geográfico)
@@ -46,7 +59,8 @@ Os scripts estão em `Códigos/` e devem ser executados na seguinte ordem:
 
 ### Apêndices & Consolidação
 - `apendice_modelos.py` — comparação multi-modelo (Optuna + SHAP)
-- `exportar_tabelas_excel.py` — **[Passo 16 obrigatório]** consolida todas as tabelas em `Tabelas_e_Graficos_TCC.xlsx`
+- `exportar_tabelas_excel.py` — **[Passo obrigatório]** consolida todas as tabelas em `Tabelas_e_Graficos_TCC.xlsx`
+- `gerar_figuras_tcc.py` — figuras do documento final em escala de cinza, 300 dpi
 
 ### Legado
 - `etl_fornecedores_verdes.py` — [OBSOLETO] dicionário CNAE-verde anterior (6 divisões BNDES)
@@ -95,24 +109,28 @@ Consolidadas em: `Tabelas_e_Graficos_TCC.xlsx` (12 abas)
 - Eixo Social da FEBRABAN = propósito social da atividade (hospital, escola)
 - Pilar S de conduta = gap salarial, equidade, CEIS (como a firma se comporta)
 
-### Não-Vazamento (Fase 2)
-- SMOTE apenas no treino; teste intocado
+### Não-Vazamento e partição (Fase 2)
+- Partição estratificada **60/20/20** — treino ajusta parâmetros, validação seleciona o modelo, teste é usado uma única vez
+- SMOTE apenas no treino; validação e teste preservam a prevalência real
+- O ponto de corte da decisão binária é definido na **validação** e apenas aplicado ao teste
 - Features preditoras: só cadastrais (porte, capital, tempo, CNAE)
 - Variáveis socioambientais que alimentam a rubrica: **proibidas** como preditoras
 
-### Recorte & Vigência
-- **Corte: 31/05/2026** (FEBRABAN Dez/2020)
-- **Monitoramento: 01/06–31/10/2026** (novas edições FEBRABAN/TSB)
+### Recortes (dois, distintos)
+- **Normativo: 31/05/2026** — taxonomia FEBRABAN (versão Dez/2020), TSB, PRSAC
+- **Dados: 31/08/2026** — posição das bases públicas
+- A FEBRABAN substituiu a Taxonomia Verde pela Taxonomia de Finanças Sustentáveis em julho/2026, **posteriormente** ao recorte normativo — a versão utilizada era a vigente
 
 ## Métricas-Chave (Resultados Preliminares)
 
 | Dimensão | Valor |
 |---|---|
-| Amostra | 2.764.563 PMEs (AAS 10% RFB) |
+| População | 27.647.482 estabelecimentos ativos |
+| Amostra | 2.764.563 (fração 9,9993%; erro ±0,06 p.p.) |
 | Economia verde | 424.091 (15,3%) |
-| Fase 2 AUC (XGBoost, 4 classes) | 0,9188 |
+| Fase 2 AUC (XGBoost) | 0,9193 validação / 0,9188 teste |
 | ROC binária (elegível × não) | 0,9555 |
-| Aprovados (Verde-A/B) | 49,9% |
+| Aprovados (Verde-A/B) | 49,9% — estimados 13,78 mi na população |
 | Equidade regional | Sem penalidade; N/NE aprovam **mais** que Sudeste |
 
 ## Como Usar

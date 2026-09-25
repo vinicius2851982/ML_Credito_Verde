@@ -68,7 +68,15 @@ os.makedirs(MODELOS_DIR, exist_ok=True)
 # Constantes
 # ------------------------------------------------------------------
 SEED      = 42
+
+# Particao em TRES conjuntos (60/20/20), estratificada pela faixa:
+#   TREINO    -> ajusta os parametros do modelo
+#   VALIDACAO -> compara modelos e escolhe o final (nunca reporta desempenho)
+#   TESTE     -> tocado UMA vez, ao final, so para a estimativa nao-enviesada
+# Separar validacao de teste evita que a selecao do modelo contamine a
+# metrica reportada (selection bias). O teste nao participa de escolha alguma.
 TEST_SIZE = 0.20
+VAL_SIZE  = 0.20
 
 # ------------------------------------------------------------------
 # FEATURES — pre-triagem CADASTRAL barata (decisao: framework §6.5).
@@ -97,7 +105,7 @@ FEATURES_CAT = ["cnae_divisao"]          # one-hot (setor de atividade)
 
 PORTE_MAP = {"00": 0, "01": 1, "03": 2, "05": 3}
 ANOS_SEM_INFRACAO = 30.0
-HOJE = pd.Timestamp(2026, 6, 1)
+HOJE = pd.Timestamp(2026, 9, 1)   # dia seguinte ao corte dos dados (31/08/2026); ver recorte.py
 
 NOMES = {
     "porte_num": "Porte (ordinal)", "capital_social_log": "Capital Social log",
@@ -267,43 +275,66 @@ def main():
     y, class_names = codificar_target(df)
     n_classes = len(class_names)
 
-    # [5] Split + SMOTE
-    print(f"\n[5/8] Split {1-TEST_SIZE:.0%}/{TEST_SIZE:.0%} estratificado + SMOTE...")
-    X_train, X_test, y_train, y_test = train_test_split(
+    # [5] Particao em TRES conjuntos (60/20/20) + SMOTE so no treino
+    print(f"\n[5/8] Particao estratificada "
+          f"{1-TEST_SIZE-VAL_SIZE:.0%}/{VAL_SIZE:.0%}/{TEST_SIZE:.0%} (treino/val/teste) + SMOTE...")
+    # 1o corte: separa o TESTE e o deixa lacrado ate a avaliacao final
+    X_resto, X_test, y_resto, y_test = train_test_split(
         X, y, test_size=TEST_SIZE, random_state=SEED, stratify=y)
-    print(f"      Treino: {len(X_train):,} | Teste: {len(X_test):,}")
-    print(f"      SMOTE: {dict(zip(*np.unique(y_train, return_counts=True)))}", end=" -> ")
+    # 2o corte: divide o restante em treino e validacao
+    val_rel = VAL_SIZE / (1.0 - TEST_SIZE)
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_resto, y_resto, test_size=val_rel, random_state=SEED, stratify=y_resto)
+    del X_resto, y_resto; gc.collect()
+    print(f"      Treino: {len(X_train):,} | Validacao: {len(X_val):,} | Teste: {len(X_test):,}")
+    # SMOTE APENAS no treino: validacao e teste preservam a prevalencia real
+    print(f"      SMOTE (so treino): {dict(zip(*np.unique(y_train, return_counts=True)))}", end=" -> ")
     X_train, y_train = SMOTE(random_state=SEED, k_neighbors=5).fit_resample(X_train, y_train)
     print(dict(zip(*np.unique(y_train, return_counts=True)))); gc.collect()
 
     resultados = {}
 
-    # [6] Regressao Logistica (baseline)
-    print("\n[6/8] Treinando modelos...")
+    # [6] Treino dos candidatos e SELECAO pela VALIDACAO
+    print("\n[6/8] Treinando modelos (selecao pela validacao)...")
     print("      --- Regressao Logistica ---")
     scaler = StandardScaler()
     log = LogisticRegression(max_iter=1000, random_state=SEED, n_jobs=-1, C=1.0)
     log.fit(scaler.fit_transform(X_train), y_train)
-    proba_log = log.predict_proba(scaler.transform(X_test))
-    pred_log  = proba_log.argmax(axis=1)
-    m_log = metricas(y_test, pred_log, proba_log, n_classes)
-    resultados["Logistica"] = {"modelo": log, "scaler": scaler, "proba": proba_log,
-                               "pred": pred_log, **m_log}
-    print("      " + " | ".join(f"{k}={v:.4f}" for k, v in m_log.items()))
+    proba_log_val = log.predict_proba(scaler.transform(X_val))
+    mv_log = metricas(y_val, proba_log_val.argmax(axis=1), proba_log_val, n_classes)
+    print("      validacao: " + " | ".join(f"{k}={v:.4f}" for k, v in mv_log.items()))
 
-    # XGBoost (relacoes nao-lineares) — hiperparametros fixos sensatos
     print("      --- XGBoost ---")
     xgb = XGBClassifier(n_estimators=300, max_depth=6, learning_rate=0.05,
                         subsample=0.8, colsample_bytree=0.8, eval_metric="auc",
                         random_state=SEED, n_jobs=-1, verbosity=0)
     xgb.fit(X_train, y_train)
+    proba_xgb_val = xgb.predict_proba(X_val)
+    mv_xgb = metricas(y_val, proba_xgb_val.argmax(axis=1), proba_xgb_val, n_classes)
+    print("      validacao: " + " | ".join(f"{k}={v:.4f}" for k, v in mv_xgb.items()))
+
+    # Decisao tomada na VALIDACAO — o teste ainda nao foi tocado
+    val_metricas = {"Logistica": mv_log, "XGBoost": mv_xgb}
+    escolhido = max(val_metricas, key=lambda k: val_metricas[k]["auc"])
+    print(f"\n      >> Modelo selecionado pela validacao: {escolhido} "
+          f"(AUC_val={val_metricas[escolhido]['auc']:.4f})")
+
+    # [6b] Estimativa final no TESTE — primeiro e unico uso
+    print("\n      Avaliacao final no conjunto de TESTE (uso unico)...")
+    proba_log = log.predict_proba(scaler.transform(X_test))
+    pred_log  = proba_log.argmax(axis=1)
+    m_log = metricas(y_test, pred_log, proba_log, n_classes)
+    resultados["Logistica"] = {"modelo": log, "scaler": scaler, "proba": proba_log,
+                               "pred": pred_log, "val": mv_log, **m_log}
+    print("      Logistica (teste): " + " | ".join(f"{k}={v:.4f}" for k, v in m_log.items()))
+
     proba_xgb = xgb.predict_proba(X_test)
     pred_xgb  = proba_xgb.argmax(axis=1)
     m_xgb = metricas(y_test, pred_xgb, proba_xgb, n_classes)
     imp = pd.Series(xgb.feature_importances_, index=feats).sort_values(ascending=False)
     resultados["XGBoost"] = {"modelo": xgb, "proba": proba_xgb, "pred": pred_xgb,
-                             "importancia": imp, **m_xgb}
-    print("      " + " | ".join(f"{k}={v:.4f}" for k, v in m_xgb.items()))
+                             "importancia": imp, "val": mv_xgb, **m_xgb}
+    print("      XGBoost (teste):   " + " | ".join(f"{k}={v:.4f}" for k, v in m_xgb.items()))
 
     # [7] Curva ROC + ponto de corte otimo (modelo principal = XGBoost)
     print("\n[7/8] Curva ROC e ponto de corte otimo (Youden)...")
@@ -376,7 +407,24 @@ def gerar_relatorio(resultados, y_test, feats, class_names, n_total, n_eleg, n_v
     L.append(f"  [cad] numericas: {', '.join(FEATURES_NUM)}")
     n_cnae = sum(1 for f in feats if f.startswith("cnae_"))
     L.append(f"  [cad] cnae_divisao (one-hot): {n_cnae} divisoes")
-    L.append("\nDESEMPENHO (conjunto de teste)")
+    L.append(f"\nPARTICAO ESTRATIFICADA (treino/validacao/teste) = "
+             f"{1-TEST_SIZE-VAL_SIZE:.0%}/{VAL_SIZE:.0%}/{TEST_SIZE:.0%}")
+    L.append("  Treino    : ajuste dos parametros (unico conjunto com SMOTE)")
+    L.append("  Validacao : selecao do modelo final — nao reportada como desempenho")
+    L.append("  Teste     : uso unico, ao final; estimativa nao-enviesada")
+
+    L.append("\nSELECAO DO MODELO (conjunto de VALIDACAO)")
+    L.append(f"  {'Modelo':<12}{'Accuracy':>10}{'Precision':>11}{'Recall':>9}{'F1':>9}{'AUC-ROC':>10}")
+    for nome in ["Logistica", "XGBoost"]:
+        v = resultados[nome].get("val")
+        if v:
+            L.append(f"  {nome:<12}{v['accuracy']:>10.4f}{v['precision']:>11.4f}"
+                     f"{v['recall']:>9.4f}{v['f1']:>9.4f}{v['auc']:>10.4f}")
+    if all("val" in resultados[n] for n in ("Logistica", "XGBoost")):
+        melhor = max(("Logistica", "XGBoost"), key=lambda k: resultados[k]["val"]["auc"])
+        L.append(f"  -> Selecionado pela validacao: {melhor}")
+
+    L.append("\nDESEMPENHO FINAL (conjunto de TESTE — uso unico)")
     L.append(f"  {'Modelo':<12}{'Accuracy':>10}{'Precision':>11}{'Recall':>9}{'F1':>9}{'AUC-ROC':>10}")
     for nome in ["Logistica", "XGBoost"]:
         r = resultados[nome]

@@ -13,7 +13,8 @@ Excel — este script e o passo que garante isso. Rode-o ao final de qualquer
 recalculo:  python -B Códigos/exportar_tabelas_excel.py
 
 OUTPUT:
-  Tabelas_e_Graficos_TCC.xlsx   (na RAIZ do projeto, para edicao pelo autor)
+  "20260612 - Tabelas_e_Graficos_TCC - claude.xlsx"  (RAIZ, para edicao pelo autor)
+  Convencao de nomes dos documentos: aaaammdd - nome - autor.ext (data de CRIACAO)
 """
 
 import os
@@ -28,7 +29,7 @@ from openpyxl.chart import BarChart, Reference
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DADOS    = os.path.join(BASE_DIR, "Dados")
 SCORED   = os.path.join(DADOS, "base_analitica_scored.csv")
-SAIDA    = os.path.join(BASE_DIR, "Tabelas_e_Graficos_TCC.xlsx")
+SAIDA    = os.path.join(BASE_DIR, "20260612 - Tabelas_e_Graficos_TCC - claude.xlsx")
 
 REGIAO = {
     **{u: "Norte"        for u in ["AC","AP","AM","PA","RO","RR","TO"]},
@@ -311,6 +312,46 @@ def main():
         fmt["empresas"] = NUM0
         escrever_aba(ws, "Apoio. Distribuicao e score por UF", tuf, fmt,
                      "Fonte: analise_regional.py — base para mapas/recortes que o autor quiser")
+
+    # ---- T11 Desenho amostral: aderencia populacao x amostra ----
+    cam_ader = os.path.join(DADOS, "tabela_aderencia_amostral.csv")
+    if os.path.exists(cam_ader):
+        tad = pd.read_csv(cam_ader, sep=";", encoding="utf-8-sig")
+        ws = wb.create_sheet("T11_Aderencia_Amostral")
+        fmt = {}
+        for c in tad.columns:
+            if c in ("populacao", "amostra"):
+                fmt[c] = NUM0
+            elif c.endswith("_%"):
+                fmt[c] = PCT
+            elif c in ("dif_pp", "fracao_%", "erro_amostral_pp"):
+                fmt[c] = NUM3
+        escrever_aba(ws, "Tabela 11. Aderencia da amostra a populacao (por estrato)", tad, fmt,
+                     "Fonte: analise_amostral.py — varredura da base bruta da RFB; "
+                     "fracao_% proxima de 10 indica proporcionalidade", 26)
+
+    # ---- T12 Estimativas populacionais (peso amostral) ----
+    cam_est = os.path.join(DADOS, "estimativas_populacionais.csv")
+    if os.path.exists(cam_est):
+        tes = pd.read_csv(cam_est, sep=";", encoding="utf-8-sig")
+        mostrar = [c for c in ["dominio", "indicador", "amostra", "p", "total",
+                               "tot_li", "tot_ls", "erro_pp"] if c in tes.columns]
+        tes = tes[mostrar].rename(columns={
+            "p": "proporcao", "total": "estimativa_populacional",
+            "tot_li": "IC95_inferior", "tot_ls": "IC95_superior",
+            "erro_pp": "margem_erro_pp"})
+        ws = wb.create_sheet("T12_Estim_Populacionais")
+        fmt = {"amostra": NUM0, "proporcao": PCT, "estimativa_populacional": NUM0,
+               "IC95_inferior": NUM0, "IC95_superior": NUM0, "margem_erro_pp": NUM3}
+        h = escrever_aba(ws, "Tabela 12. Estimativas para a populacao (amostra expandida pelo peso)",
+                         tes, fmt,
+                         "Fonte: estimativas_populacionais.py — AAS sem reposicao, "
+                         "correcao (1-f) para populacao finita, IC 95%", 24)
+        brasil = tes[tes["dominio"] == "Brasil"] if "dominio" in tes.columns else tes
+        if len(brasil):
+            col_est = mostrar.index("total") + 1 if "total" in mostrar else 5
+            grafico_barras(ws, "Estimativa populacional por indicador (Brasil)",
+                           h, len(brasil), col_est, "J3")
 
     print("[3/4] Salvando workbook ...")
     wb.save(SAIDA)

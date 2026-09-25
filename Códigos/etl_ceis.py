@@ -30,6 +30,10 @@ import os
 import re
 import glob
 import pandas as pd
+
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from recorte import CORTE_DADOS  # noqa: E402
 from datetime import date
 
 BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -37,7 +41,10 @@ PASTA_CEIS  = os.path.join(BASE_DIR, "Dados", "ceis")
 OUTPUT_PATH = os.path.join(BASE_DIR, "Dados", "stg_ceis.csv")
 
 PADRAO_NAO_DIGITO = re.compile(r"\D")
-HOJE = pd.Timestamp(date.today())
+# A vigencia da sancao e aferida na data de CORTE dos dados, nao na data de
+# execucao: usar date.today() faria o resultado mudar a cada rodada e
+# incluiria fatos posteriores ao recorte declarado. Ver recorte.py.
+HOJE = CORTE_DADOS
 
 
 def localizar_csv_ceis(pasta: str) -> str:

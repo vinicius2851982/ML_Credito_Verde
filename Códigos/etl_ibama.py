@@ -24,6 +24,9 @@ import zipfile
 import requests
 import pandas as pd
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from recorte import filtrar_ate_corte, CORTE_DADOS_STR  # noqa: E402
+
 # ------------------------------------------------------------------
 # Configurações de caminho
 # ------------------------------------------------------------------
@@ -317,6 +320,11 @@ def tipar_colunas(df: pd.DataFrame) -> pd.DataFrame:
         df["DAT_AUTO_INFRACAO"] = pd.to_datetime(
             df["DAT_AUTO_INFRACAO"], dayfirst=True, errors="coerce"
         )
+        # A base do IBAMA e CUMULATIVA: o arquivo publicado hoje traz autuacoes
+        # posteriores ao recorte do estudo. Sem este filtro, entrariam fatos
+        # que nao existiam na data declarada — erro silencioso, invisivel nas
+        # metricas. Ver Códigos/recorte.py.
+        df = filtrar_ate_corte(df, "DAT_AUTO_INFRACAO")
 
     return df
 

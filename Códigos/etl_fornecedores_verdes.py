@@ -4,7 +4,7 @@ etl_fornecedores_verdes.py
 TCC MBA USP/Esalq - Credito Verde e IA para PMEs
 Autor: Helio Vinicius Moreira Ribeiro
 
-[LEGADO — FORA DA CADEIA OFICIAL] (ver DECISOES_TCC.md §7)
+[LEGADO — FORA DA CADEIA OFICIAL] (ver "20260605 - DECISOES_TCC - claude.md" §7)
   A classificacao da ATIVIDADE verde migrou para a Taxonomia Verde da FEBRABAN
   (subclasse CNAE, 1.331 itens, escopo E+S) em construir_base_febraban.py. O
   dicionario CNAE-verde de 6 divisoes BNDES abaixo (stg_cnae_verde.csv) cobria
